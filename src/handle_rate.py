@@ -17,6 +17,7 @@ LOCK_RENEW_SECS = int(os.getenv("LOCK_RENEW_SECS", "300"))
 COSMOS_URL = os.getenv("cosmos_db_url")
 COSMOS_KEY = os.getenv("cosmos_db_key")
 DATABASE_NAME = "storybook_db"
+preview_ids = []
 
 cosmos_client = CosmosClient(COSMOS_URL, credential=COSMOS_KEY)
 database = cosmos_client.get_database_client(DATABASE_NAME)
@@ -302,8 +303,16 @@ async def modify_start_time(preview_id, container):
 
 async def process_message(preview_id):
 
-    global rate_limits
+    global rate_limits, preview_ids
     preview_id = json.loads(str(preview_id.message))["data"]
+
+    if preview_id in preview_ids:
+        return
+
+    preview_ids.append(preview_id)
+
+    if len(preview_ids) > 50:
+        preview_ids = preview_ids[30:]
     log_function(f"Starting to Process: {preview_id}")
 
     while True:
@@ -312,7 +321,7 @@ async def process_message(preview_id):
         deployment_2 = get_available_deployment(deployments)
         await update_timestamps(deployment_1, deployment_2)
 
-        if deployment_1 and deployment_2:
+        if deployment_1 != {} and deployment_2 != {}:
             break
 
     try:
