@@ -23,6 +23,7 @@ CONNECTION_STR = os.environ["SERVICE_BUS"]
 QUEUE_NAME = "queue"  # fallback default
 CONCURRENCY = int(os.getenv("WORKERS", "1"))   # parallel workers
 LOCK_RENEW_SECS = int(os.getenv("LOCK_RENEW_SECS", "300"))
+preview_ids = []
 
 
 def images_to_pdf(list):
@@ -276,8 +277,9 @@ async def simulate_image_generation(data):
     return None
 
 
-async def process_message(msg, worker_name: str):
+async def process_message(json_data, worker_name: str):
 
+    preview_id = json_data["data"]
     client = CosmosClient(
         os.environ["cosmos_db_url"],
         os.environ["cosmos_db_key"]
@@ -290,8 +292,6 @@ async def process_message(msg, worker_name: str):
         client.get_database_client("storybook_db")
         .get_container_client("books_container")
     )
-    json_data = json.loads(str(msg.message))
-    preview_id = json_data["data"]
     log_function(f"Processing: {preview_id}")
     deployment_1 = json_data.get("deployment_1").get("deployment-name")
     deployment_2 = json_data.get("deployment_1").get("deployment-name")
@@ -412,6 +412,8 @@ async def process_message(msg, worker_name: str):
     log_function(f"Completed job: {worker_name}")
     end = time.time()
     await modify_end_time(preview_id, container)
+    global preview_ids
+    preview_ids.remove(preview_id)
     log_function(f"Time Taken: {end - start}")
 
 
@@ -456,6 +458,17 @@ async def get_image(blob_path, blob_client, container_name="books"):
     return image
 
 
+async def intermediate(msg, worker_name):
+
+    global preview_ids
+    json_data = json.loads(str(msg.message))
+    preview_id = json_data["data"]
+
+    if preview_id not in preview_ids:
+        preview_ids.append(preview_id)
+        asyncio.create_task(process_message(json_data, worker_name))
+
+
 async def worker(worker_name: str):
 
     try:
@@ -481,28 +494,18 @@ async def worker(worker_name: str):
 
                     try:
 
-                        await process_message(msg, worker_name)
+                        await intermediate(msg, worker_name)
+                        await receiver.complete_message(msg)
 
                     except Exception as exc:
 
                         log_function(exc)
                         await receiver.abandon_message(msg)
 
-                    else:
-
-                        await receiver.complete_message(msg)
-
     except Exception as e:
         log_function(e)
 
 
-async def main():
-    tasks = [
-        asyncio.create_task(worker(f"w{i+1}")) for i in range(CONCURRENCY)
-    ]
-    await asyncio.gather(*tasks)
-
-
 if __name__ == "__main__":
 
-    asyncio.run(main())
+    asyncio.run(worker("w1"))
