@@ -1,7 +1,8 @@
 azure-servicebus
+aiohttp
 azure-cosmos
 azure-storage-blob
 azure-core
 langchain[openai]
 pillow
-psutil
+typing_extensions==4.13.2

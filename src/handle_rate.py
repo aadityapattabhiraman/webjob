@@ -1,9 +1,7 @@
 import asyncio
-import time
 import json
 import os
-from azure.servicebus.aio import ServiceBusClient
-from azure.servicebus.aio import AutoLockRenewer
+from azure.servicebus.aio import ServiceBusClient, AutoLockRenewer
 from azure.servicebus import ServiceBusReceiveMode, ServiceBusMessage
 from azure.cosmos import CosmosClient
 from datetime import datetime
@@ -15,7 +13,7 @@ from azure.core import MatchConditions
 
 CONNECTION_STR = os.environ["SERVICE_BUS"]
 QUEUE_NAME = "queue"  # fallback default
-LOCK_RENEW_SECS = int(os.getenv("LOCK_RENEW_SECS", "300"))  # max 5m in this sample
+LOCK_RENEW_SECS = int(os.getenv("LOCK_RENEW_SECS", "300"))
 COSMOS_URL = os.getenv("cosmos_db_url")
 COSMOS_KEY = os.getenv("cosmos_db_key")
 DATABASE_NAME = "storybook_db"
@@ -233,37 +231,28 @@ def get_deployments():
     return deployments
 
 
-def get_available_deployment(
-    deployments: Dict
-):
+def get_available_deployment(deployments: Dict) -> dict:
 
     global rate_limits
-    available = None
-    endpoints = rate_limits.keys()
     current_time = datetime.now()
 
-    for zone in endpoints:
-        for deployment in deployments[zone]:
+    for zone, zone_deployments in deployments.items():
+        for deployment in zone_deployments:
+            deployment_name = deployment["deployment-name"]
 
-            timestamps = rate_limits[zone][deployment["deployment-name"]]
-            recent = [
-                ts for ts in timestamps
-                if (
-                    current_time - datetime.fromisoformat(ts)
-                ).total_seconds() < 60
-            ]
+            # Get the list of timestamps for the current deployment
+            timestamps = rate_limits.get(zone, {}).get(deployment_name, [])
 
-            if len(recent) < 3:
+            # Count the number of timestamps within the last 60 seconds
+            recent_count = sum(
+                1 for ts in timestamps
+                if (current_time - datetime.fromisoformat(ts)).total_seconds() < 60
+            )
 
-                available = deployment
-                break
+            if recent_count < 3:
+                return deployment
 
-        if available:
-
-            return available
-    else:
-
-        return None
+    return {}
 
 
 async def update_timestamps(deploymenter_1, deploymenter_2):
@@ -315,7 +304,7 @@ async def process_message(preview_id):
 
     global rate_limits
     preview_id = json.loads(str(preview_id.message))["data"]
-    log_function("Getting deployments")
+    log_function(f"Starting to Process: {preview_id}")
 
     while True:
         deployments = get_deployments()
@@ -330,7 +319,6 @@ async def process_message(preview_id):
 
         client = ServiceBusClient.from_connection_string(CONNECTION_STR)
         sender = client.get_queue_sender(queue_name=QUEUE_NAME)
-        log_function({"data": preview_id, "deployment_1": deployment_1, "deployment_2": deployment_2})
         message = ServiceBusMessage(json.dumps(
             {"data": preview_id, "deployment_1": deployment_1, "deployment_2": deployment_2}
         ))
@@ -342,6 +330,7 @@ async def process_message(preview_id):
     except Exception as e:
 
         log_function(e)
+        log_function("Nope")
         raise
 
     await modify_start_time(preview_id, previews_container)

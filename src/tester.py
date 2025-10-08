@@ -13,7 +13,6 @@ from azure.servicebus import ServiceBusMessage
 
 CONNECTION_STR = os.environ["CONNECTION_STR"]
 QUEUE_NAME = "handle_rate"
-lock = asyncio.Lock()
 
 
 async def test_preview():
@@ -25,7 +24,7 @@ async def test_preview():
     VARIANT = "boy"
     CHARACTERS = ["Maya", "Mrs.Thompson"]
     PERSONNAMES = ["Maya", "Mrs.Thompson"]
-    IMAGE_FILES = ["./data/image1.jpg", "./data/image2.jpg"]
+    IMAGE_FILES = ["../data/image1.jpg", "../data/image2.jpg"]
     PAGES_TO_RENDER = 2
 
     # Validate inputs
@@ -88,16 +87,15 @@ async def test_preview():
     async with ServiceBusClient.from_connection_string(CONNECTION_STR) as client:
         sender = client.get_queue_sender(queue_name=QUEUE_NAME)
         async with sender:
-            async with lock:
-                message = ServiceBusMessage(json.dumps({"data": preview_id}))
-                await sender.send_messages(message)
+            message = ServiceBusMessage(json.dumps({"data": preview_id}))
+            await sender.send_messages(message)
 
     end = time.time()
     print(f"[{OWNER_ID}] Time Taken: {end - start:.2f}s")
 
 
 async def main():
-    concurrency = 25
+    concurrency = 10
     tasks = []
 
     for _ in range(concurrency):
