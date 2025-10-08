@@ -1,0 +1,7 @@
+azure-servicebus
+azure-cosmos
+azure-storage-blob
+azure-core
+langchain[openai]
+pillow
+psutil
