@@ -3,6 +3,8 @@ import time
 import io
 import json
 import asyncio
+from single_character import single_character_azure
+from multi_character import multi_character_azure
 from azure.servicebus.aio import ServiceBusClient, AutoLockRenewer
 from azure.servicebus import ServiceBusReceiveMode
 from datetime import datetime
@@ -351,6 +353,7 @@ async def process_message(json_data, worker_name: str):
             ]
 
             await preview_data_cosmos(preview_id, container, str(user_desc))
+            new_text = replace_text([book_data["pages"][_ - 1]["text"]], user_data)
             text.append(book_data["pages"][_ - 1]["text"])
             desc = [
                 book_data["pages"][_ - 1]["vision_description"].get(gender)
@@ -366,11 +369,13 @@ async def process_message(json_data, worker_name: str):
                     "user_id": user_id,
                     "images": images,
                     "description": description,
+                    "text": new_text,
+                    "gender": gender,
                     # "deployment": clients[count],
                 }
 
                 log_function("Sending to swap")
-                image_tasks.append(simulate_image_generation(data))
+                image_tasks.append(single_character_azure(data))
 
             else:
 
@@ -381,10 +386,12 @@ async def process_message(json_data, worker_name: str):
                     "user_id": user_id,
                     "images": images,
                     "description": description,
+                    "text": new_text,
+                    "gender": gender,
                     # "deployment": clients[count],
                 }
                 log_function("Sending to swap")
-                image_tasks.append(simulate_image_generation(data))
+                image_tasks.append(multi_character_azure(data))
             count += 1
 
     except Exception as e:
@@ -394,21 +401,12 @@ async def process_message(json_data, worker_name: str):
         raise
 
     images = await asyncio.gather(*image_tasks)
-    # images = [_ for _ in images if _ is not None]
-    images = stit
 
     log_function("Received images")
 
     if len(images) == 0:
         return None
 
-    text = replace_text(text, user_data)
-    log_function("Stitching images")
-    stiched_images = [
-        stitch(images[i], text[i], gender) for i in range(len(images))
-    ]
-    log_function("Generating pdf")
-    pdf = images_to_pdf(stiched_images)
     log_function(f"Completed job: {worker_name}")
     end = time.time()
     await modify_end_time(preview_id, container)
