@@ -8,8 +8,8 @@ from openai import AsyncOpenAI, AsyncAzureOpenAI, BadRequestError
 from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import ContentSettings
 from typing import List
-from ai_models import set_quality
-from logging_utility import log_moderation
+# from ai_models import set_quality
+# from logging_utility import log_moderation
 from stitch_image_outside import stitch
 
 
@@ -53,7 +53,7 @@ async def multi_character(payload):
 
             elif "moderation_blocked" in text:
 
-                log_moderation(text)
+                # log_moderation(text)
                 new_prompt = """
     📘 Storybook Context:
     This image is intended for use in a children’s storybook. The
@@ -114,7 +114,7 @@ async def multi_character_azure(payload):
             image=images,
             prompt=prompt,
             n=1,
-            quality=set_quality,
+            quality="low",
             # quality = quality_val_ui  #Remove after testing
         )
 
@@ -131,7 +131,7 @@ async def multi_character_azure(payload):
         elif "moderation_blocked" in text:
 
             te = prompt + "\n" + images
-            log_moderation(te)
+            # log_moderation(te)
 
     if not response:
         return None

@@ -95,7 +95,7 @@ async def test_preview():
 
 
 async def main():
-    concurrency = 30
+    concurrency = 1
     tasks = []
 
     for _ in range(concurrency):

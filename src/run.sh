@@ -1,2 +1,2 @@
-pip install --no-cache-dir -r requirements.txt
-python handle_rate.py
+pip install --no-cache-dir -r requirements1.txt
+python async_webjob.py
