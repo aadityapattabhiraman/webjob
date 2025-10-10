@@ -16,7 +16,6 @@ from langchain.schema import SystemMessage, HumanMessage
 from langchain_openai import AzureChatOpenAI
 import base64
 from azure.core import MatchConditions
-from stitch_image_outside import stitch
 from PIL import Image
 from functools import reduce
 
@@ -42,6 +41,8 @@ def images_to_pdf(list):
 
 def replace_text(list, characters):
 
+    log_function(list)
+    log_function(characters)
     list = [
         reduce(lambda s, c: s.replace(c["key"], c["label"]), characters, _)
         for _ in list
@@ -295,9 +296,11 @@ async def process_message(json_data, worker_name: str):
         .get_container_client("books_container")
     )
     log_function(f"Processing: {preview_id}")
-    deployment_1 = json_data.get("deployment_1").get("deployment-name")
-    deployment_2 = json_data.get("deployment_1").get("deployment-name")
-    await modify_start_time(preview_id, container, deployment_1, deployment_2)
+    deployment_1 = json_data.get("deployment_1")
+    deployment_2 = json_data.get("deployment_1")
+    quality = json_data.get("quality")
+    deployments = iter([deployment_1, deployment_2])
+    await modify_start_time(preview_id, container, deployment_1.get("deployment-name"), deployment_2.get("deployment-name"))
 
     start = time.time()
 
@@ -353,12 +356,13 @@ async def process_message(json_data, worker_name: str):
             ]
 
             await preview_data_cosmos(preview_id, container, str(user_desc))
-            new_text = replace_text([book_data["pages"][_ - 1]["text"]], user_data)
+            new_text = replace_text([book_data["pages"][_ - 1]["text"]], user_data)[0]
             text.append(book_data["pages"][_ - 1]["text"])
             desc = [
                 book_data["pages"][_ - 1]["vision_description"].get(gender)
             ]
             description = desc + user_desc
+            deployment = next(deployments)
 
             if len(images) == 2:
 
@@ -371,7 +375,8 @@ async def process_message(json_data, worker_name: str):
                     "description": description,
                     "text": new_text,
                     "gender": gender,
-                    # "deployment": clients[count],
+                    "deployment": deployment,
+                    "quality": quality
                 }
 
                 log_function("Sending to swap")
@@ -388,7 +393,8 @@ async def process_message(json_data, worker_name: str):
                     "description": description,
                     "text": new_text,
                     "gender": gender,
-                    # "deployment": clients[count],
+                    "deployment": deployment,
+                    "quality": quality
                 }
                 log_function("Sending to swap")
                 image_tasks.append(multi_character_azure(data))
@@ -400,7 +406,11 @@ async def process_message(json_data, worker_name: str):
         log_function("Nope")
         raise
 
-    images = await asyncio.gather(*image_tasks)
+    try:
+        images = await asyncio.gather(*image_tasks)
+
+    except Exception as e:
+        log_function(e)
 
     log_function("Received images")
 

@@ -7,8 +7,6 @@ import base64
 from openai import AsyncOpenAI, AsyncAzureOpenAI, BadRequestError
 from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import ContentSettings
-# from ai_models import set_quality
-# from logging_utility import log_moderation
 from stitch_image_outside import stitch
 
 
@@ -90,6 +88,7 @@ async def single_character_azure(payload):
     deployment = payload["deployment"]
     text_1 = payload["text"]
     gender = payload["gender"]
+    quality = payload["quality"]
     # quality_val_ui = payload["quality_val_ui"] #Remove after testing
 
     api_key = deployment["api_key"]
@@ -113,8 +112,8 @@ async def single_character_azure(payload):
             image=images,
             prompt=prompt,
             n=1,
-            quality="low",
-            # quality = quality_val_ui
+            quality=quality,
+            input_fidelity="high",
         )
 
     except Exception as e:
@@ -156,11 +155,11 @@ async def upload(image, user_id, preview_id, book_id, page_num):
     blob_name = f"{user_id}/{preview_id}/{book_id}/{page_num}.png"
     blob_client = container_client.get_blob_client(blob_name)
 
-    blob_client.upload_blob(
+    asyncio.create_task(blob_client.upload_blob(
         data=image,
         overwrite=True,
         content_settings=ContentSettings(content_type="image/png"),
-    )
+    ))
 
 
 async def get_prompt(desc: str):

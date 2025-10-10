@@ -305,6 +305,7 @@ async def process_message(preview_id):
 
     global rate_limits, preview_ids
     preview_id = json.loads(str(preview_id.message))["data"]
+    quality = json.loads(str(preview_id.message))["quality"]
 
     if preview_id in preview_ids:
         return
@@ -329,7 +330,12 @@ async def process_message(preview_id):
         client = ServiceBusClient.from_connection_string(CONNECTION_STR)
         sender = client.get_queue_sender(queue_name=QUEUE_NAME)
         message = ServiceBusMessage(json.dumps(
-            {"data": preview_id, "deployment_1": deployment_1, "deployment_2": deployment_2}
+            {
+                "data": preview_id,
+                "deployment_1": deployment_1,
+                "deployment_2": deployment_2,
+                "quality": quality
+            }
         ))
 
         await sender.send_messages(message)

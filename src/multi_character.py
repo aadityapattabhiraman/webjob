@@ -8,7 +8,6 @@ from openai import AsyncOpenAI, AsyncAzureOpenAI, BadRequestError
 from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import ContentSettings
 from typing import List
-# from ai_models import set_quality
 # from logging_utility import log_moderation
 from stitch_image_outside import stitch
 
@@ -21,7 +20,8 @@ async def multi_character(payload):
     user_id = payload["user_id"]
     images = payload["images"]
     description = payload["description"]
-    quality_val_ui = payload ["quality_val_ui"]
+    # quality_val_ui = payload ["quality_val_ui"]
+    quality = payload["quality"]
 
     api_key = os.environ["OPENAI_API_KEY"]
     client = AsyncOpenAI(api_key=api_key)
@@ -37,8 +37,7 @@ async def multi_character(payload):
                 model="gpt-image-1",
                 image=images,
                 prompt=prompt,
-                # quality=set_quality
-                quality = quality_val_ui
+                quality=quality
             )
 
             break
@@ -90,8 +89,7 @@ async def multi_character_azure(payload):
     deployment = payload["deployment"]
     text_1 = payload["text"]
     gender = payload["gender"]
-    quality_val_ui = payload["quality_val_ui"] #Remove after testing
-    
+    quality = payload["quality"]
 
     api_key = deployment["api_key"]
     endpoint = deployment["endpoint"]
@@ -113,9 +111,9 @@ async def multi_character_azure(payload):
             model="gpt-image-1",
             image=images,
             prompt=prompt,
+            input_fidelity="high",
             n=1,
-            quality="low",
-            # quality = quality_val_ui  #Remove after testing
+            quality=quality,
         )
 
     except Exception as e:
@@ -157,11 +155,11 @@ async def upload(image, user_id, preview_id, book_id, page_num):
     blob_name = f"{user_id}/{preview_id}/{book_id}/{page_num}.png"
     blob_client = container_client.get_blob_client(blob_name)
 
-    blob_client.upload_blob(
+    asyncio.create_task(blob_client.upload_blob(
         data=image,
         overwrite=True,
         content_settings=ContentSettings(content_type="image/png"),
-    )
+    ))
 
 
 async def get_prompt(desc: str, description: List):
