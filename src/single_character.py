@@ -1,80 +1,12 @@
 import asyncio
-import aiohttp
-import json
 import io
 import os
 import base64
-from openai import AsyncOpenAI, AsyncAzureOpenAI, BadRequestError
+from openai import AsyncAzureOpenAI
 from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import ContentSettings
 from stitch_image_outside import stitch
-
-
-async def single_character(payload):
-
-    page_num = payload["page_num"]
-    preview_id = payload["preview_id"]
-    book_id = payload["book_id"]
-    user_id = payload["user_id"]
-    images = payload["images"]
-    desc = payload["description"]
-    
-
-    api_key = os.environ["OPENAI_API_KEY"]
-    client = AsyncOpenAI(api_key=api_key)
-
-    prompt = await get_prompt(desc[0])
-    response = None
-
-    while True:
-
-        try:
-
-            response = await client.images.edit(
-                model="gpt-image-1",
-                image=images,
-                prompt=prompt,
-                quality=set_quality
-                
-            )
-
-            break
-
-        except BadRequestError as e:
-
-            text = str(e).lower()
-
-            if "billing_hard_limit" in text:
-
-                break
-
-            elif "moderation_blocked" in text:
-
-                te = prompt + "\n" + images
-                # log_moderation(te)
-                new_prompt = """
-    📘 Storybook Context:
-    This image is intended for use in a children’s storybook. The
-    scene should convey gentle, age-appropriate emotion with
-    visual storytelling that resonates with young readers. The tone
-    must remain warm, sensitive, and suitable for a family-friendly
-    narrative.
-                """
-
-                prompt = new_prompt + prompt
-
-    if not response:
-        exit()
-
-    image = response.data[0].b64_json
-    image = base64.b64decode(image)
-
-    asyncio.create_task(upload(image, user_id, preview_id, book_id, page_num))
-
-    image = io.BytesIO(image)
-    image.name = "final_image.png"
-
-    return image
+from async_webjob import log_function
 
 
 async def single_character_azure(payload):
@@ -118,18 +50,36 @@ async def single_character_azure(payload):
 
     except Exception as e:
 
-        print(e)
+        log_function(e)
 
-        text = str(e).lower()
+        if "403" or "429" in str(e):
+            log_function("Rate limit reached")
 
-        if "billing_hard_limit" in text:
+        elif "401" in str(e):
+            log_function("invalid Authentication")
+            return
 
-            pass
+        elif "404" in str(e):
+            log_function("API Endpoint Not Found")
+            return
 
-        elif "moderation_blocked" in text:
+        elif "403" in str(e):
+            log_function("Permission Error")
 
-            # log_moderation(text)
-            pass
+        elif "400" in str(e) and "moderation_blocked" in str(e):
+            log_function("Moderation Error")
+
+        elif "503" in str(e):
+            log_function("Engine is currently overloaded")
+
+        response = await client.images.edit(
+            model="gpt-image-1",
+            image=images,
+            prompt=await get_relaxed_prompt(desc[0]),
+            n=1,
+            quality=quality,
+            input_fidelity="high",
+        )
 
     if not response:
         return None
@@ -160,6 +110,43 @@ async def upload(image, user_id, preview_id, book_id, page_num):
         overwrite=True,
         content_settings=ContentSettings(content_type="image/png"),
     ))
+
+
+async def get_relaxed_prompt(desc: str):
+
+    prompt = f"""
+    📘 Storybook Context:
+    This image is intended for use in a children’s storybook. The
+    scene should convey gentle, age-appropriate emotion with
+    visual storytelling that resonates with young readers. The tone
+    must remain warm, sensitive, and suitable for a family-friendly
+    narrative.
+
+    Create a highly detailed, realistic digital painting guided by the provided
+    template image.
+
+    Scene and mood:
+    {desc}
+
+    Do not depict recognizable real individuals.
+
+    Preserve exactly:
+    Facial expression, gaze direction, and head angle
+    Body posture and gestures
+    Wardrobe and props
+    Scene lighting and painterly texture
+
+    Do not change:
+    Composition, positions, or atmosphere established by the template image
+    The original emotional narrative or visual storytelling
+
+    Final output:
+    Blend the revised characters into the scene with seamless realism and
+    consistent emotion, matching the tone, detail, and storytelling of the
+    original so the figures appear naturally part of the environment.
+    """
+
+    return prompt
 
 
 async def get_prompt(desc: str):
