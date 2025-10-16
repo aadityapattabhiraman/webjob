@@ -66,6 +66,7 @@ async def multi_character_azure(payload):
 
         elif "403" in str(e):
             log_function("Permission Error")
+            return
 
         elif "400" in str(e) and "moderation_blocked" in str(e):
             log_function("Moderation Error")

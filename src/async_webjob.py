@@ -408,9 +408,12 @@ async def process_message(json_data, worker_name: str):
 
     try:
         images = await asyncio.gather(*image_tasks)
+        if None in images:
+            raise
 
     except Exception as e:
         log_function(e)
+        raise
 
     log_function("Received images")
 
