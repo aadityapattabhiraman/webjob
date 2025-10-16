@@ -21,7 +21,6 @@ async def single_character_azure(payload):
     text_1 = payload["text"]
     gender = payload["gender"]
     quality = payload["quality"]
-    # quality_val_ui = payload["quality_val_ui"] #Remove after testing
 
     api_key = deployment["api_key"]
     endpoint = deployment["endpoint"]
