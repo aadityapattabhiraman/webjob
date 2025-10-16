@@ -6,7 +6,7 @@ from openai import AsyncAzureOpenAI
 from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import ContentSettings
 from stitch_image_outside import stitch
-from async_webjob import log_function
+from logging_utility import log_function, log_moderation
 
 
 async def single_character_azure(payload):
@@ -66,6 +66,7 @@ async def single_character_azure(payload):
             log_function("Permission Error")
 
         elif "400" in str(e) and "moderation_blocked" in str(e):
+            log_moderation(e)
             log_function("Moderation Error")
 
         elif "503" in str(e):

@@ -7,7 +7,7 @@ from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import ContentSettings
 from typing import List
 from async_webjob import log_function
-# from logging_utility import log_moderation
+from logging_utility import log_moderation, log_function
 from stitch_image_outside import stitch
 
 
@@ -69,6 +69,7 @@ async def multi_character_azure(payload):
             return
 
         elif "400" in str(e) and "moderation_blocked" in str(e):
+            log_moderation(e)
             log_function("Moderation Error")
 
         elif "503" in str(e):
