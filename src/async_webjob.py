@@ -8,9 +8,7 @@ from multi_character import multi_character_azure
 from azure.servicebus.aio import ServiceBusClient, AutoLockRenewer
 from azure.servicebus import ServiceBusReceiveMode
 from datetime import datetime
-from azure.storage.blob import ContentSettings
 from azure.storage.blob import BlobServiceClient
-from azure.core.exceptions import ResourceNotFoundError
 from azure.cosmos import CosmosClient
 from langchain.schema import SystemMessage, HumanMessage
 from langchain_openai import AzureChatOpenAI
@@ -18,6 +16,7 @@ import base64
 from azure.core import MatchConditions
 from PIL import Image
 from functools import reduce
+from logging_utility import log_function
 
 
 CONNECTION_STR = os.environ["SERVICE_BUS"]
@@ -132,58 +131,6 @@ async def user_description(image):
 
         log_function(e)
         return "Unable to generate"
-
-
-def log_function(log_content, clear_file=0):
-
-    # 💡 Replace or load this from .env
-    log_content = "[TESTING PREVIEW] " + str(log_content) + "\n"
-    connection_string = os.getenv("connection_string")
-    log_container_name = "logs"
-    log_blob_name = "log_web_jobs.txt"
-
-    # Create BlobServiceClient
-    blob_service_client = BlobServiceClient.from_connection_string(
-        connection_string
-    )
-    blob_client = blob_service_client.get_blob_client(
-        log_container_name,
-        log_blob_name
-    )
-
-    # Clear the file if clear_file is set to 1
-    if clear_file == 1:
-        blob_client.upload_blob(
-            b"",
-            overwrite=True,
-            content_settings=ContentSettings(content_type="text/plain")
-        )
-
-    # Download the existing log content if any
-    try:
-
-        existing = blob_client.download_blob().readall()
-
-    except ResourceNotFoundError:
-
-        existing = b""
-
-    # Get IST time
-    current_time_ist = datetime.now().strftime(
-        "Current Time : %Y-%m-%d %H:%M:%S"
-    )
-
-    # Prepare the log content with timestamp
-    timestamp_content = f"{current_time_ist} : "
-    time_stamp_content_bytes = timestamp_content.encode("utf-8")
-    log_content_bytes = log_content.encode("utf-8")
-
-    # Combine the existing log with the new log entry
-    blob_client.upload_blob(
-        existing + time_stamp_content_bytes + log_content_bytes,
-        overwrite=True,
-        content_settings=ContentSettings(content_type="text/plain")
-    )
 
 
 async def book_data_cosmos(book_id, books_container):
