@@ -6,3 +6,4 @@ azure-core
 langchain[openai]
 pillow
 typing_extensions==4.13.2
+pytz
